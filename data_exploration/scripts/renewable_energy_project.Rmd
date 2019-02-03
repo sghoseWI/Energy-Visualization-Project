@@ -1,0 +1,177 @@
+---
+title: "Renewable Energy Project"
+author: "Saptarshi Ghose"
+date: "2/03/2019"
+output:
+  html_document:
+  code_folding: hide
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+chooseCRANmirror(graphics=FALSE, ind=1)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r set-options, echo=FALSE, cache=FALSE}
+options(width = 10000)
+```
+
+```{r, include=FALSE, warning=FALSE}
+rm(list=ls())   
+
+```
+
+```{r, include=FALSE, warning=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(ggmap)
+library(ggalt)
+library(usmap)
+library(rmarkdown)
+library(reshape2)
+```
+
+```{r, include=FALSE, warning=FALSE}
+deepsolar_data <- read_csv(file = "/Users/saptarshighose/Documents/Saptarshi/University of Chicago/Data Visualization/Data/deepsolar_tract.csv")
+deepsolar_cost_panel_data <- read_csv(file = "/Users/saptarshighose/Documents/Saptarshi/University of Chicago/Data Visualization/Data/deepsolar_cost_panel_data.csv")
+openpv_data <- read_csv(file = "/Users/saptarshighose/Documents/Saptarshi/University of Chicago/Data Visualization/Data/openpv_all.csv")
+eia_total_coal_data <- read_csv(file = "/Users/saptarshighose/Documents/Saptarshi/University of Chicago/Data Visualization/Data/eia_total_coal_electricity_output.csv")
+epa_air_pollution_data <- read_csv(file = "/Users/saptarshighose/Downloads/pollution_used.csv")
+```
+
+```{r, include=FALSE, warning=FALSE}
+
+attach(data())
+```
+
+```{r, echo=FALSE, warning=FALSE, fig.width=10, fig.height=4.5, dpi=300, out.width="1920px",out.height="1080px"}
+options(scipen=10000)
+long <- melt(eia_total_coal_data, id.vars = c("Year"))
+colnames(long)[2] <- "Coal-based Energy Production by Sector"
+colnames(long)[3] <- "Total Coal-based Energy Production (Gigawatts)"
+
+ggplot(long, aes(x=Year, y=long$"Total Coal-based Energy Production (Gigawatts)", fill=long$"Coal-based Energy Production by Sector")) +
+  geom_area(colour="black", size=.2, alpha=.4) +
+  scale_fill_brewer(palette="Spectral") +
+  scale_x_continuous(expand = c(0, 0), limits = c(2000,2017), breaks = (seq(2000,2017,1)), labels=(seq(2000,2017,1)))  + 
+  geom_vline(xintercept=2011, color="black", linetype="solid") +
+  geom_text(aes(x= 2011, y = 3000000, hjust = -.03, vjust = -10, label="New EPA Coal Regulations (2011)"),  color="black", fontface=1) + 
+  labs(title = "Coal-based Energy Has Plummeted Over Time in the US",
+       subtitle = "Total Coal-based Energy Production",
+       caption="Source: US Energy Information Administration",
+       x = "Year",
+       y = "Total Coal Based Power (Gigawatts)") + 
+  guides(fill=guide_legend(title="Coal Energy Sector")) + theme_bw() + theme(axis.text.x = element_text(angle = 45))
+
+```
+<br>
+<br>
+
+In this visualization, we can see hot total coal-based energy production across sectors has fluctuated over time in the United States.  The Total Coal Based Power trend lines shows an overall decreaase of over 25% between 2000 and 2017.  Further, we can see that the EPA's implementation of new coal regulations under the Obama Administration in 2011 aligns with the downward trend in coal energy output in that time period.
+
+<br>
+<br>
+```{r, echo=FALSE, warning=FALSE, fig.width=10, fig.height=4.5, dpi=300, out.width="1920px",out.height="1080px"}
+sampled_open_pv_data <- sample_frac(openpv_data, size = 0.2, replace=FALSE)  #Sample of full Open PV dataset
+
+sampled_open_pv_data %>%
+  filter(install_type %in% c("Agricultural","Commercial","Education","Government","Nonprofit","Residential")) %>%
+  ggplot(aes(x=install_type, y=size_kw, color = install_type, stroke = 1),  alpha = 0.3)  + 
+  geom_point(alpha = 0.2) +
+  geom_jitter() + 
+  labs(title = "Commercial and Government Photo Voltaic Systems Vary Most Widely in Size",
+       subtitle = "Size and Cost of Photo Voltaic Systems by Type",
+       caption = "Source: The Open Photo Voltaic Project (National Renewable Energy Lab)",
+       color = "Type of Photo Voltaic System",
+       x = "Type of Photo Voltaic System",
+       y = "Total Size of Photo Voltaic System (Kilowatts)") +
+  ylim(0, 1500) +
+  theme(axis.text.x = element_text(angle = 90),
+        strip.text = element_text(face = "plain", 
+                                  size = rel(1))) + theme_light()
+```
+
+<br>
+<br>
+
+From this visualization, we can see that commercial, government, and non-profit applications have the widevest variation in the total size of photo voltaic systems (Kilowatts).  The data shows that these systems reach nearly 1500KW in size.  In contrast, residential and agricultural applications tend to be relatively much smaller -- rarely exceeding 500KW in size. 
+
+<br>
+<br>
+```{r, fig.width=10, fig.height=4.5, dpi=300, out.width="1920px",out.height="1080px", echo=FALSE, warning=FALSE}
+ggplot(deepsolar_cost_panel_data, aes(x=reorder(State, -deepsolar_cost_panel_data$`PV Systems`), y=deepsolar_cost_panel_data$"PV Systems", size = deepsolar_cost_panel_data$"Average Cost of Electricity", stroke = 1),  alpha = 0.3)  + 
+geom_point(colour="black") +
+geom_text(aes(x= "CA", y = 693250, hjust = -.1, vjust = 1, label="California (693,250 PV Systems)"),  color="dark green", size = 3) + 
+geom_text(aes(x= "FL", y = 155383, hjust = -.1, vjust = 1, label="Florida (155,383 PV Systems)"),  color="dark red", size = 3) + 
+geom_segment(aes(x = "CA", y = 693250, xend = "FL", yend = 155383), size = 1, linejoin = "round", na.rm = FALSE,
+             show.legend = NA, inherit.aes = TRUE, linetype = 'solid') + 
+labs(title = "California Easily Leads the Nation in Building Photo Voltaic Systems",
+     subtitle = "Count and Average Cost of Photo Voltaic Systems by State",
+     caption = "Source: Stanford Deepsolar Project",
+     size = "Average Cost per KW-hour \n (cents)",
+     x = "State",
+     y = "Count of Photo Voltaic Systems") +
+theme(axis.text.x = element_text(angle = 90),
+      strip.text = element_text(face = "plain", 
+                                size = rel(1))) + theme_classic() + theme(axis.text.x = element_text(angle = 90))
+```
+
+<br>
+<br>
+
+From this chart, showing the number of photo voltaic systems present in each state, we can see that California leads the nation by several orders of magnitude compared to Florida, the next closest competitor.  Further, cost per unit of electricity in these states varies widely.  Illustratively, California leads the nation in photo voltaic systems, but pays significantly more per unit of electricity that Florida.  
+
+<br>
+<br>
+
+```{r echo=FALSE, warning=FALSE, fig.width=10, fig.height=12, dpi=300}
+deepsolar_data$state = toupper(deepsolar_data$state)  
+
+deepsolar_data %>%
+  ggplot(aes(x = average_household_income)) +
+  geom_histogram(color="darkblue", fill="springgreen3", bins = 8) +
+  facet_wrap(~state) +
+  scale_x_continuous(labels = scales::dollar) +
+  scale_y_log10() + 
+  labs(title = "Average Income Distribution Varies Widely by State",
+       subtitle = "Average Household Income by State (Census Tract Level)",
+       caption="Source: The Deepsolar Project + The US Census",
+       x = "Average Household Income",
+       y = "Count of Census Tracts") + 
+  theme(axis.text.x = element_text(angle = 90),
+        strip.text = element_text(face = "plain", 
+                                  size = rel(1))) + theme(panel.grid.minor = element_blank())
+```
+<br>
+<br>
+
+From this chart we can see that some of the states with the highest concentration of photo voltaic systems, like California and Florida, also seem to have more earners at the higher ends of the distrivution compared to other US states. Similarly, states like South Dakota and West Virginia that are on the lower end of the average income distribution are also low in terms of their concentration of photo voltaic systems.  This suggests a possibly meaningful correlation between the wealth of state residents and the concentration of pv systems in their respective states.
+<br>
+<br>
+
+```{r, warning=FALSE, echo=FALSE,fig.width=10, fig.height=4.5, dpi=300, out.width="1920px",out.height="1080px"}
+epa_air_pollution_data$`Total Pollution Emitted` <- as.integer(epa_air_pollution_data$`Total Pollution Emitted`)
+
+ggplot(epa_air_pollution_data, aes(x = Year, y = epa_air_pollution_data$"Total Pollution Emitted", color = epa_air_pollution_data$"Pollutant")) + 
+geom_line(size = 1.5) +
+geom_point(size = 1.8, color = "black") + 
+geom_text(aes(label=epa_air_pollution_data$"Total Pollution Emitted"), vjust=3, hjust = -.12) +
+scale_x_continuous(expand = c(0, 0), limits = c(2000,2017), breaks = (seq(2000,2017,1)), labels=(seq(2000,2017,1))) + 
+  labs(title = "Air Pollution Emissions have Dropped Substantially Over Time",
+       subtitle = "Emissions of CO, NOx, and SO2 in the US (Millions of Tons)",
+       caption = "Source: Stanford Deepsolar Project",
+       color = "Air Pollutant Type",
+       x = "Year",
+       y = "Total Emissions (Millions of Tons)") +
+  theme(axis.text.x = element_text(angle = 90),
+        strip.text = element_text(face = "plain", 
+                                  size = rel(1))) + theme_classic()  
+```  
+<br>
+<br>
+
+From this chart, we can trends over time for three of the major air pollutants.  The concentration of each of these pollutants (CO, NOx,SO2) have all declined over time -- both indidually and cumulitavely.  CO emissions shaw the sharpest overall decline.
+
+<br>
+<br>
