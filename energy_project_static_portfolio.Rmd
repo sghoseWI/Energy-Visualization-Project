@@ -1,0 +1,275 @@
+---
+title: "Clean Solar: A Glance at the Relationship Between Solar, Coal, and Air Pollution in the US Over Time"
+author: "Saptarshi Ghose"
+output:
+  html_document:
+      code_folding: hide
+---
+
+```{r setup, warning=FALSE, include=FALSE}
+chooseCRANmirror(graphics=FALSE, ind=1)
+knitr::opts_chunk$set(echo = TRUE)
+options(readr.num_columns = 0)
+```
+
+```{r set-options, cache=FALSE, warning=FALSE, include = FALSE}
+options(width = 10000)
+```
+
+```{r, include=FALSE, warning=FALSE}
+rm(list=ls())   
+
+library(tidyverse)
+library(ggplot2)
+library(ggmap)
+library(ggalt)
+library(usmap)
+library(rmarkdown)
+library(reshape2)
+library(sf)
+library(raster)
+library(scales)
+
+deepsolar_data <- read_csv(file = "/Users/saptarshighose/Documents/Saptarshi/University of Chicago/Data Visualization/Data/deepsolar_tract.csv")
+deepsolar_data_agg <- read_csv(file = "/Users/saptarshighose/Documents/Saptarshi/University of Chicago/Data Visualization/Data/deepsolar_data_agg.csv")
+deepsolar_cost_panel_data <- read_csv(file = "/Users/saptarshighose/Documents/Saptarshi/University of Chicago/Data Visualization/Data/deepsolar_cost_panel_data.csv")
+openpv_data <- read_csv(file = "/Users/saptarshighose/Documents/Saptarshi/University of Chicago/Data Visualization/Data/openpv_all.csv")
+eia_total_coal_data <- read_csv(file = "/Users/saptarshighose/Documents/Saptarshi/University of Chicago/Data Visualization/Data/eia_total_coal_electricity_output.csv")
+epa_air_pollution_data <- read_csv(file = "/Users/saptarshighose/Downloads/pollution_used.csv")
+setwd("~/Documents/Saptarshi/University of Chicago/Data Visualization/Data/cb_2017_us_county_20m (1)")
+shape <- st_read("cb_2017_us_county_20m.shp")
+solar <- read_csv("/Users/saptarshighose/Documents/Saptarshi/University of Chicago/Data Visualization/Data/deepsolar_data_panels.csv")
+state_names <- read_csv(file = "/Users/saptarshighose/Documents/Saptarshi/University of Chicago/Data Visualization/Data/fps_to_name.csv")
+
+my_theme <- theme(text=element_text(size=12,  family="Rockwell"), panel.grid.minor = element_line(colour="white", size=0.2),panel.grid.major = element_line(colour="white", size=0.2), panel.background = element_rect(fill = "#F7F7F7", colour = '#194022'),panel.border = element_rect(colour = "black", fill=NA, size=1), plot.title=element_text(size=16,color="black"), plot.subtitle=element_text(size=14, face="italic", color="black"), plot.caption=element_text(size=12, color="black"), axis.title =element_text(size=14, color="black"))
+
+my_theme_map <- theme(legend.key.size = unit(.3, "cm"),axis.title = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks = element_blank(),text=element_text(size=12,  family="Rockwell"), panel.grid.minor = element_line(colour="white", size=0.2),panel.border = element_rect(colour = "black", fill=NA, size=1), panel.grid.major = element_line(colour="white", size=0.2), legend.position = c(0.86, 0.2),panel.background = element_rect(fill = "#F7F7F7", colour = '#194022'), plot.title=element_text(size=16,color="black"), plot.subtitle=element_text(size=14, face="italic", color="black"), plot.caption=element_text(size=12, color="black"))
+```
+
+```{r, warning=FALSE, include = FALSE}
+solar_collapsed <- solar %>%
+  group_by(state, county) %>%
+  summarise(total_solar_panels = sum(solar_system_count))
+
+solar_collapsed$county <- gsub("County", "", solar_collapsed$county)
+solar_collapsed$county <- gsub("city", "", solar_collapsed$county)
+
+solar_collapsed$state_county <- as.character(paste(solar_collapsed$state, ".", solar_collapsed$county))
+
+full_shape <- inner_join(shape, state_names, by = c("STATEFP" = "FPS"))
+full_shape$state_county <- as.character(paste(full_shape$State, ".", full_shape$NAME))
+
+
+full_shape$state_county <- trim(full_shape$state_county)
+solar_collapsed$state_county <- trim(solar_collapsed$state_county)
+
+joined <- inner_join(full_shape, solar_collapsed, by = "state_county")
+
+joined_binned <- joined %>%
+  mutate(bin_colors = cut(total_solar_panels, breaks = c(0, 1, 2, 10, 50, 100, 1000, 10000, 105000), include.lowest = T))
+
+attach(data())
+```
+
+```{r, warning=FALSE,fig.width=12, fig.height=6, dpi=300, out.width="1920px",out.height="1080px"}
+options(scipen=10000)
+long <- melt(eia_total_coal_data, id.vars = c("Year"))
+colnames(long)[2] <- "Coal-based Energy Production by Sector"
+colnames(long)[3] <- "Total Coal-based Energy Production (Gigawatts)"
+
+ggplot(long, aes(x=Year, y=long$"Total Coal-based Energy Production (Gigawatts)", fill=long$"Coal-based Energy Production by Sector")) +
+  geom_area(colour="black", size=.2) +
+  scale_fill_manual(values = c("#9CFFA1", "#579FE8", "#00F5FF", "#1DE88C", "#353DFF")) + 
+  scale_x_continuous(expand = c(0, 0), limits = c(2000,2017), breaks = (seq(2000,2017,1)), labels=(seq(2000,2017,1)))  + 
+  geom_vline(xintercept=2011, color="black", linetype="dashed", size = 1) +
+  geom_text(aes( x= 2011, y = 3000000, hjust = -.03, vjust = -10, label="New EPA Coal Regulations (2011)"), size =3, color="black") +
+  labs(title = "Coal-based Energy Has Fallen Sharply Over Time in the US",
+       subtitle = "Total Coal-based Energy Production",
+       caption="Source: US Energy Information Administration",
+       x = "Year",
+       y = "Total Coal Based Power (Gigawatts)") + 
+  guides(fill=guide_legend(title="Coal Energy Sector")) + my_theme
+```
+<br>
+<br>
+
+In this visualization, we can see how total coal-based energy production across sectors has fluctuated over time in the United States.  The Total Coal Based Power trend lines shows an overall decreaase of over 25% between 2000 and 2017.  Further, we can see that the EPA's implementation of new coal regulations under the Obama Administration in 2011 aligns with the downward trend in coal energy output in that time period.  According to Reuters, change in coal-powered electric generation from utilities may be declining pat a particularly high rate because existing systems are often old and expensive to replace.  In addition, they note that gas-powered generation is now very often a cheaper and less polluting alternative (https://www.reuters.com/article/us-usa-coal-kemp/us-power-producers-coal-consumption-falls-to-35-year-low-kemp-idUSKCN1M61ZX). 
+
+<br>
+<br>
+```{r, warning=FALSE, fig.width=13, fig.height=8, dpi=300, out.width="1920px",out.height="1080px"}
+sampled_open_pv_data <- sample_frac(openpv_data, size = 0.2, replace=FALSE)  #Sample of full Open PV dataset
+sampled_open_pv_data <- filter(sampled_open_pv_data, install_type %in% c("Agricultural","Commercial","Education","Government","Nonprofit","Residential"))
+
+ggplot(sampled_open_pv_data, aes(x=install_type, y=size_kw, color = install_type, stroke = 1))  + 
+geom_point() +
+geom_jitter() + 
+scale_color_manual(values=c('#2BC273', '#353DFF', '#353DFF', '#2BC273', '#2BC273')) +
+labs(title = "Commercial and Government Photo Voltaic Systems Tend to be Largest in Size",
+     subtitle = "Size and Cost of Photo Voltaic Systems by Type",
+     caption = "Source: The Open Photo Voltaic Project (National Renewable Energy Lab)",
+     color = "Type of Photo Voltaic System",
+     x = "Type of Photo Voltaic System",
+     y = "Total Size of Photo Voltaic System (Kilowatts)") +
+theme(legend.position = c(0.88, 0.7)) + 
+ylim(0, 1500) +
+my_theme
+```
+
+<br>
+<br>
+
+From this visualization, we can see that commercial, government, and non-profit applications have the widevest variation in the total size of photo voltaic systems (Kilowatts).  The data shows that these systems reach nearly 1500KW in size.  In contrast, residential and agricultural applications tend to be relatively much smaller -- rarely exceeding 500KW in size. 
+
+<br>
+<br>
+```{r, fig.width=10, fig.height=6, dpi=300, out.width="1920px",out.height="1080px",  warning=FALSE}
+ggplot(deepsolar_data_agg, aes(x=reorder(State, -deepsolar_data_agg$`PV Systems`), y=deepsolar_data_agg$"PV Systems", size = deepsolar_data_agg$"Average Cost of Electricity", stroke = 1),  alpha = 0.3)  + 
+geom_point(colour="#579FE8") +
+geom_text(aes(x= "CA", y = 693.250, hjust = -.1, vjust = 1, label="California (693,250 PV Systems)"),  color="#353DFF", size = 3) + 
+geom_text(aes(x= "FL", y = 155.383, hjust = -.1, vjust = 1, label="Florida (155,383 PV Systems)"),  color="#353DFF", size = 3) + 
+geom_segment(aes(x = "CA", y = 693.250, xend = "FL", yend = 155.383), size = 1, linejoin = "round", na.rm = FALSE,
+             show.legend = NA, inherit.aes = TRUE, linetype = 'solid') + 
+theme(legend.position = c(0.8, 0.5)) + 
+labs(title = "California Easily Leads the Nation in Building Photo Voltaic Systems",
+     subtitle = "Count and Average Cost of Photo Voltaic Systems by State",
+     caption = "Source: Stanford Deepsolar Project",
+     color = "Average Cost of Electricity",
+     size = "Average Cost per KW-hour \n (cents)",
+     x = "State",
+     y = "Count of Photo Voltaic Systems (Thousands)") + my_theme +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+<br>
+<br>
+
+From this chart, showing the number of photo voltaic systems present in each state, we can see that California leads the nation by several orders of magnitude compared to Florida, the next closest competitor.  Further, cost per unit of electricity in these states varies widely.  Illustratively, California leads the nation in photo voltaic systems, but pays significantly more per unit of electricity that Florida.  
+
+<br>
+<br>
+
+```{r warning=FALSE, fig.width=10, fig.height=12, dpi=300}
+openpv_data %>%
+  ggplot(aes(x = cost_per_watt)) +
+  geom_histogram(color="#353DFF", fill="#1DE88C", bins = 10) +
+  facet_wrap(~state) +
+  scale_x_continuous(labels = scales::dollar) +
+  scale_y_log10() + 
+  labs(title = "Cost per Watt of Photo Voltaic Systems Varies Widely by State",
+       subtitle = "Cost per Watt by State ($)",
+       caption="Source: The Open PV Project",
+       x = "Cost per Watt of PV Systems ($)",
+       y = "Count of PV Systems") + 
+  my_theme
+```
+<br>
+<br>
+
+From this chart we can see that some of the states with the highest concentration of photo voltaic systems, like California and Florida, also seem to have more earners at the higher ends of the distrivution compared to other US states. Similarly, states like South Dakota and West Virginia that are on the lower end of the average income distribution are also low in terms of their concentration of photo voltaic systems.  This suggests a possibly meaningful correlation between the wealth of state residents and the concentration of pv systems in their respective states.
+<br>
+<br>
+
+
+```{r, warning=FALSE, fig.width=10, fig.height=6, dpi=300, out.width="1920px",out.height="1080px"}
+
+epa_air_pollution_data$`Total Pollution Emitted` <- as.integer(epa_air_pollution_data$`Total Pollution Emitted`)
+
+ggplot() + geom_bar(aes(y = epa_air_pollution_data$"Total Pollution Emitted", x = Year, fill = Pollutant), data = epa_air_pollution_data,stat="identity") + 
+labs(title = "Total Emissions of Major Pollutants Have Been Steadily Declining Over Time ",
+     subtitle = "Total Emission of Major Air Pollutants in the US 2000-2017",
+     caption = "Source: EPA",
+     color = "Air Pollutant Type",
+     x = "Year",
+     y = "Total Emissions (Millions of Tons)") +
+scale_fill_manual(values = c("#1DE88C", "#00F5FF", "#579FE8")) +
+scale_x_continuous(expand = c(0, 0), limits = c(1999,2018), breaks = (seq(2000,2017,1)), labels=(seq(2000,2017,1))) +
+theme(legend.position = c(0.8, 0.8)) + 
+my_theme
+```  
+
+<br>
+<br>
+
+From this chart we can see further evidence that total emissions -- among these three major air pollutants in the US -- have declined over time.  However, Carbon Monoxide and Sulfur Dioxide have declined the most substantially.  According to the EPA, evolving regulatory action has been taken over the years - most notibaly under the Clean Air Act -- to target and reduce all three of these toxic air pollutants (https://www.epa.gov/air-trends/). 
+
+<br>
+<br>
+
+```{r, include =FALSE}
+states <- map_data("state")
+deepsolar_cost_panel_data_geom <- merge(states, deepsolar_cost_panel_data,by = "region", all.x=T)
+```
+
+
+```{r, warning=FALSE, echo=FALSE, fig.width=12, fig.height=8, dpi=300, out.width="1920px",out.height="1080px"}
+ggplot(deepsolar_cost_panel_data_geom, aes(x=long,y=lat,group=group))+
+  geom_polygon(aes(fill=(deepsolar_cost_panel_data_geom$"Average Cost of Electricity")))+
+  scale_fill_gradient(low = "#9CFFA1", high = "#353DFF") + 
+    # geom_polygon(aes(fill=Value))+
+  geom_path()+ 
+  coord_map() +
+  labs(title = "Cost of Electricity Varies Across the United States",
+       subtitle = "Average Cost of Electricity (Cents per KW-hour) by State",
+       caption = "Source: Stanford Deepsolar Project") + 
+  guides(fill=guide_legend(title="Average Cost of Electricity \n (Cents per KW-Hour)")) + 
+my_theme_map
+```
+<br>
+<br>
+
+The average cost per unit of electicity is highest in California and on the east coast of the US.  This observation is particularly striking, given that these regions are also home to relatively high concentrations of PV systems.  
+
+<br>
+<br>
+
+```{r, warning=FALSE, fig.width=13, fig.height=8, dpi=300, out.width="1920px",out.height="1080px"}
+
+deepsolar_cost_panel_data <- read_csv(file = "/Users/saptarshighose/Downloads/deepsolar_cost_panel_data.csv")
+
+ggplot(deepsolar_cost_panel_data, aes(x=forcats::fct_rev(deepsolar_cost_panel_data$region), y=deepsolar_cost_panel_data$'Average Cost of Electricity', label=deepsolar_cost_panel_data$'Average Cost of Electricity')) + 
+  geom_point(stat='identity', aes(col=deepsolar_cost_panel_data$avg), size=deepsolar_cost_panel_data$'Average Cost of Electricity')  +
+  scale_color_manual(values=c('#2BC273', '#579FE8')) +
+  geom_text(color="black", size=3) +
+  geom_hline(yintercept=10.21, color="black", linetype="dashed", size = 1) +
+  labs(title = "Electricity Costs Vary Widely by State",
+       subtitle = "Average Cost of Electricity (per KW-hour) by State",
+       caption = "Source: Stanford Deepsolar Project",
+       color = "Average Cost of Electricity",
+       x = "State",
+       y = "Average Cost of Electricity (per KW-hour)")  + 
+  coord_flip() +
+  theme(legend.position = c(0.88, 0.1)) + 
+  my_theme 
+```
+
+
+```{r, warning=FALSE, fig.width=12, fig.height=8, dpi=300, out.width="1920px",out.height="1080px"}
+
+colors1 <- c("black", "gray", "#9CFFA1", "#00F5FF", "#1DE88C", "#1BDBBA", "#579FE8", "#353DFF")
+
+options(scipen=10000)
+
+ggplot(joined_binned) +
+  geom_sf(aes(fill = bin_colors), lwd=0) +
+  labs(title = "Photo Voltaic Systems Are Concentrated In Just A Few Counties in California",
+       subtitle = "Number of PV Systems by County",
+       caption = "Source: Stanford Deepsolar Project") + 
+  scale_fill_manual(values = colors1, labels = paste(c(0, 1, 2, 10, 50, 100, 1000, "Over 10,000"))) + 
+  guides(fill=guide_legend(title="Number of PV Systems")) +
+  my_theme_map
+
+```
+
+<br>
+
+Photo Voltaic systems are heavily concentrated in California, Florida, and the east coast.  Most of the counties without any observable PV systems, according to the Stanford Deepsolar Project, are in the middle of the country.  
+
+<br>
+<br>
+
